@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier une Session{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Modifier une Session</h2>
+    <form method="post">
+        <!-- Champ Code de la Session -->
+        <div class="mb-3">
+            <label for="code_session" class="form-label">Code de la Session</label>
+            <input type="text" class="form-control" id="code_session" name="code_session" value="{{ session.code_session }}" required>
+        </div>
+
+        <!-- Champ Site avec liste déroulante -->
+        <div class="mb-3">
+            <label for="site" class="form-label">Site</label>
+            <select class="form-select" id="site" name="site" required>
+                {% for site in site_options %}
+                <option value="{{ site }}" {% if site == session.site %}selected{% endif %}>{{ site }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Champ Formation avec liste déroulante -->
+        <div class="mb-3">
+            <label for="formation" class="form-label">Formation</label>
+            <select class="form-select" id="formation" name="formation" required>
+                {% for formation in formation_options %}
+                <option value="{{ formation }}" {% if formation == session.formation %}selected{% endif %}>{{ formation }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Case à cocher pour Annuler la Session -->
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="annule" name="annule" {% if session.annule %}checked{% endif %}>
+            <label for="annule" class="form-check-label">Annuler cette session</label>
+        </div>
+
+        <!-- Bouton de Soumission -->
+        <button type="submit" class="btn btn-success">Enregistrer les modifications</button>
+        <a href="{{ url_for('list_sessions') }}" class="btn btn-secondary">Annuler</a>
+    </form>
+</div>
+{% endblock %}

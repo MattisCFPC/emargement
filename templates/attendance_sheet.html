@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Générer une feuille d'émargement{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Générer une feuille d'émargement</h1>
+    <form method="post">
+        <!-- Sélection de la Session -->
+        <div class="mb-3">
+            <label for="sessionSelect" class="form-label">Session :</label>
+            <select name="session_id" id="sessionSelect" class="form-select" onchange="updatePeriodesAndCandidates()" required>
+                <option value="" disabled selected>-- Sélectionnez une session --</option>
+                {% for session in sessions %}
+                <option value="{{ session.id }}">{{ session.get_display_name() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Sélection de la Période -->
+        <div class="mb-3">
+            <label for="periodeSelect" class="form-label">Période :</label>
+            <select name="periode_id" id="periodeSelect" class="form-select" required>
+                <option value="" disabled selected>-- Sélectionnez une période --</option>
+                <!-- Les périodes seront chargées dynamiquement -->
+            </select>
+        </div>
+
+        <!-- Sélection du Candidat -->
+        <div class="mb-3">
+            <label for="candidateSelect" class="form-label">Candidat :</label>
+            <select name="candidate_id" id="candidateSelect" class="form-select" required>
+                <option value="" disabled selected>-- Sélectionnez un candidat --</option>
+                <!-- Les candidats seront chargés dynamiquement -->
+            </select>
+        </div>
+
+        <!-- Checkbox pour Tous les Candidats -->
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="all_candidates" id="allCandidatesCheckbox" value="1">
+            <label class="form-check-label" for="allCandidatesCheckbox">Tous les candidats</label>
+        </div>
+
+        <!-- Bouton de Soumission -->
+        <button type="submit" class="btn btn-primary">Générer la feuille d'émargement</button>
+    </form>
+</div>
+
+<!-- Scripts pour mettre à jour les listes déroulantes dynamiquement -->
+<script>
+    function updatePeriodesAndCandidates() {
+        var sessionId = document.getElementById('sessionSelect').value;
+
+        // Mettre à jour les périodes
+        fetch('/get_periodes/' + sessionId)
+            .then(response => response.json())
+            .then(data => {
+                var periodeSelect = document.getElementById('periodeSelect');
+                periodeSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez une période --</option>';
+                data.periodes.forEach(function(periode) {
+                    var option = document.createElement('option');
+                    option.value = periode.id;
+                    option.text = periode.date_debut + ' au ' + periode.date_fin;
+                    periodeSelect.appendChild(option);
+                });
+            });
+
+        // Mettre à jour les candidats
+        fetch('/get_candidates/' + sessionId)
+            .then(response => response.json())
+            .then(data => {
+                var candidateSelect = document.getElementById('candidateSelect');
+                candidateSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez un candidat --</option>';
+                data.candidates.forEach(function(candidate) {
+                    var option = document.createElement('option');
+                    option.value = candidate.id;
+                    option.text = candidate.nom + ' ' + candidate.prenom;
+                    candidateSelect.appendChild(option);
+                });
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Optionnel : charger les périodes et candidats pour la première session sélectionnée
+        var sessionSelect = document.getElementById('sessionSelect');
+        if (sessionSelect.value) {
+            updatePeriodesAndCandidates();
+        }
+
+        // Désactiver le sélecteur de candidat si "Tous les candidats" est cochée
+        document.getElementById('allCandidatesCheckbox').addEventListener('change', function() {
+            var candidateSelect = document.getElementById('candidateSelect');
+            if (this.checked) {
+                candidateSelect.disabled = true;
+                candidateSelect.value = "";  // Réinitialiser la sélection
+            } else {
+                candidateSelect.disabled = false;
+            }
+        });
+    });
+</script>
+{% endblock %}

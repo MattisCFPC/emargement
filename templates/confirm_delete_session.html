@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmer la suppression{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Confirmer la suppression</h2>
+    <p>Êtes-vous sûr de vouloir supprimer la session suivante ?</p>
+    <ul>
+        <li><strong>Formation :</strong> {{ session.formation }}</li>
+        <li><strong>Site :</strong> {{ session.site }}</li>
+    </ul>
+    <form method="post">
+        <button type="button" class="btn btn-secondary me-2" data-bs-toggle="modal" data-bs-target="#confirmModal">
+            Annuler
+        </button>
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmModal">
+            Supprimer
+        </button>
+
+        <!-- Modal -->
+        <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirmer la suppression</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+              </div>
+              <div class="modal-body">
+                Êtes-vous sûr de vouloir supprimer cette session ? Cette action est irréversible.
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="submit" class="btn btn-danger">Supprimer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

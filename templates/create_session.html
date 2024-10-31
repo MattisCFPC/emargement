@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Créer une nouvelle session{% endblock %}
+
+{% block head %}
+<!-- Inclure Font Awesome pour les icônes -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-p1QhVYBljkhpQF2jOYx2QZ8qGfNExIMuXwE2XkBIXeR8qpu+YX0EGLc/44yLhVHPKqQYIRm0vYmV5wrYcl+xiw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+    /* Assurer que le corps de la page permet le défilement */
+    body {
+        margin-top: -110px;
+    }
+    /* Limiter la hauteur du formulaire et permettre le défilement interne */
+    .form-container {
+        max-height: 80vh; /* Ajustez selon vos besoins */
+        overflow-y: auto;
+        padding-right: 15px; /* Pour éviter que le contenu ne soit caché derrière la barre de défilement */
+    }
+    /* Styles pour les boutons de suppression */
+    .remove-candidate,
+    .remove-periode {
+        margin-top: 0px; /* Aligner verticalement les boutons avec les champs de saisie */
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Créer une nouvelle session</h2>
+    <div class="form-container">
+        <form method="post">
+            <!-- Champ Site avec liste déroulante -->
+            <div class="mb-3">
+                <label for="site" class="form-label">Site</label>
+                <select class="form-select" id="site" name="site" required>
+                    <option value="" disabled selected>-- Sélectionnez un site --</option>
+                    {% for site in site_options %}
+                    <option value="{{ site }}">{{ site }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Champ Formation avec liste déroulante -->
+            <div class="mb-3">
+                <label for="formation" class="form-label">Formation</label>
+                <select class="form-select" id="formation" name="formation" required>
+                    <option value="" disabled selected>-- Sélectionnez une formation --</option>
+                    {% for formation in formation_options %}
+                    <option value="{{ formation }}">{{ formation }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Section Ajouter des Candidats -->
+            <h4>Ajouter des candidats</h4>
+            <div id="candidates">
+                <div class="row mb-3">
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="nom" placeholder="Nom" required>
+                    </div>
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" name="prenom" placeholder="Prénom" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger remove-candidate w-100">
+                            <i class="fas fa-minus-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary mb-3" id="addCandidate">
+                <i class="fas fa-plus-circle"></i> Ajouter un candidat
+            </button>
+            
+            <!-- Section Ajouter des Périodes -->
+            <h4>Ajouter des périodes</h4>
+            <div id="periodes">
+                <div class="row mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label">Date de début</label>
+                        <input type="date" class="form-control" name="date_debut" required>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" name="date_fin" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger remove-periode w-100">
+                            <i class="fas fa-minus-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-primary mb-3" id="addPeriode">
+                <i class="fas fa-plus-circle"></i> Ajouter une période
+            </button>
+            
+            <!-- Bouton de Soumission -->
+            <button type="submit" class="btn btn-success">Créer la session</button>
+        </form>
+    </div>
+</div>
+
+<!-- Scripts pour ajouter/supprimer dynamiquement des candidats et des périodes -->
+<script>
+    // Fonction pour ajouter un candidat
+    document.getElementById('addCandidate').addEventListener('click', function() {
+        var candidatesDiv = document.getElementById('candidates');
+        var newCandidate = document.createElement('div');
+        newCandidate.classList.add('row', 'mb-3');
+        newCandidate.innerHTML = `
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="nom" placeholder="Nom" required>
+            </div>
+            <div class="col-md-5">
+                <input type="text" class="form-control" name="prenom" placeholder="Prénom" required>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-danger remove-candidate w-100">
+                    <i class="fas fa-minus-circle"></i>
+                </button>
+            </div>
+        `;
+        candidatesDiv.appendChild(newCandidate);
+        //
+        newCandidate.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // Fonction pour supprimer un candidat
+    document.getElementById('candidates').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-candidate')) {
+            e.target.closest('.row').remove();
+        }
+    });
+
+    // Fonction pour ajouter une période
+    document.getElementById('addPeriode').addEventListener('click', function() {
+        var periodesDiv = document.getElementById('periodes');
+        var newPeriode = document.createElement('div');
+        newPeriode.classList.add('row', 'mb-3');
+        newPeriode.innerHTML = `
+            <div class="col-md-5">
+                <label class="form-label">Date de début</label>
+                <input type="date" class="form-control" name="date_debut" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Date de fin</label>
+                <input type="date" class="form-control" name="date_fin" required>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="button" class="btn btn-danger remove-periode w-100">
+                    <i class="fas fa-minus-circle"></i>
+                </button>
+            </div>
+        `;
+        periodesDiv.appendChild(newPeriode);
+        //
+        newPeriode.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // Fonction pour supprimer une période
+    document.getElementById('periodes').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-periode')) {
+            e.target.closest('.row').remove();
+        }
+    });
+
+    
+</script>
+{% endblock %}

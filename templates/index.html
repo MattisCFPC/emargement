@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil{% endblock %}
+
+{% block content %}
+<div class="container text-center">
+    <h1 class="mb-4">Bienvenue sur l'application d'émargement CFA</h1>
+    <p class="lead">Utilisez le menu de navigation pour gérer les sessions, les candidats et générer des feuilles d'émargement.</p>
+    <a href="{{ url_for('create_session') }}" class="btn btn-primary btn-lg m-2">
+        <i class="fas fa-plus-circle"></i> Créer une session
+    </a>
+    <a href="{{ url_for('list_sessions') }}" class="btn btn-secondary btn-lg m-2">
+        <i class="fas fa-list"></i> Gérer les sessions
+    </a>
+    <a href="{{ url_for('generate_attendance') }}" class="btn btn-success btn-lg m-2">
+        <i class="fas fa-file-pdf"></i> Générer une feuille d'émargement
+    </a>
+</div>
+{% endblock %}

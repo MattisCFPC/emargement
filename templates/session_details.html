@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Détails de la session{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Détails de la session</h2>
+    <p><strong>Site :</strong> {{ session.site }}</p>
+    <p><strong>Formation :</strong> {{ session.formation }}</p>
+
+    <h4>Liste des candidats</h4>
+    {% if session.candidats %}
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for candidat in session.candidats %}
+            <tr>
+                <td>{{ candidat.nom }}</td>
+                <td>{{ candidat.prenom }}</td>
+                <td>
+                    <form action="{{ url_for('delete_candidate', candidate_id=candidat.id) }}" method="POST" style="display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce candidat ?');">Supprimer</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Aucun candidat dans cette session.</p>
+    {% endif %}
+
+    <a href="{{ url_for('list_sessions') }}" class="btn btn-secondary">Retour aux sessions</a>
+
+    
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Emargement{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Optionnel : Font Awesome pour les icônes -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 200px; /* Ajusté pour la hauteur de la navbar */
+        }
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 60px; /* Hauteur du footer */
+            background-color: #f5f5f5;
+            text-align: center;
+            padding-top: 20px;
+        }
+        /* Ajustement de la hauteur du logo dans la navbar (si utilisé) */
+        .navbar-brand img {
+            height: 50px;
+            width: auto;
+            transition: transform 0.2s;
+        }
+        .navbar-brand img:hover {
+            transform: scale(1.1);
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Barre de navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <!-- Brand : Emargement CFA -->
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                Emargement CFA
+                <!-- Si vous souhaitez réintégrer le logo, décommentez la ligne suivante et assurez-vous que le logo est dans le dossier static -->
+                <!-- <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Emargement CFA"> -->
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto"> <!-- Aligner les liens à droite -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('create_session') }}">Créer une session</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('list_sessions') }}">Gérer les sessions</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('generate_attendance') }}">Générer une feuille d'émargement</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- Contenu principal -->
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="alert alert-warning alert-dismissible fade show mt-3" role="alert">
+              {% for message in messages %}
+                <div>{{ message }}</div>
+              {% endfor %}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <div class="container">
+            <span class="text-muted">© 2024 Emargement CFA</span>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS et dépendances -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}
+    <script>
+        // Initialisation des tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    </script>
+    {% endblock %}
+</body>
+</html>
