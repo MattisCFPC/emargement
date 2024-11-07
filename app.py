@@ -215,9 +215,9 @@ def generate_attendance():
                 # Ajouter de l'espace entre les informations et le tableau
                 espace_entre = 60  # Points d'espace supplémentaire
 
-                # Tableau pour l'émargement avec des cellules plus hautes et 6 colonnes
+                # Tableau pour l'émargement avec une colonne "Signature CFA"
                 data = [
-                    ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature"]
+                    ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature", "Signature CFA"]
                 ]
                 for day in range(0, (periode.date_fin - periode.date_debut).days + 1):
                     date = periode.date_debut + timedelta(days=day)
@@ -227,16 +227,17 @@ def generate_attendance():
                         "",
                         "",
                         "",
+                        "",
                         ""
                     ])
 
-                # Création du tableau avec des cellules plus hautes
-                table = Table(data, colWidths=[70, 70, 100, 70, 100, 80], rowHeights=38)
+                # Création du tableau avec une colonne supplémentaire
+                table = Table(data, colWidths=[60, 60, 80, 60, 80, 70, 70], rowHeights=38)  # Ajusté colWidths pour 7 colonnes
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2FAC66")),  # Couleur d'en-tête
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrer le texte horizontalement
@@ -254,15 +255,22 @@ def generate_attendance():
                 p.setFont("Helvetica", 10)
                 p.drawString(width - 100, 20, f"Page {p.getPageNumber()}")
 
-                # Ajouter le logo au centre en bas et plus grand
+               # Ajouter le logo aligné à droite avec une marge
                 try:
                     logo_path = 'static/logo.png'  # Assurez-vous que le logo est dans le dossier static
                     # Dimensions du logo en points (72 points = 1 inch)
                     logo_width = 150  # Largeur du logo en points
                     logo_height = 150  # Hauteur du logo en points
+
+                    # Définir la marge depuis le bord droit
+                    marge_droite = 50  # Ajustez cette valeur selon vos besoins
+
+                    # Calculer la position x pour aligner le logo à droite avec la marge
+                    new_x = width - logo_width - marge_droite
+
                     p.drawImage(
                         logo_path,
-                        x=(width - logo_width) / 2,  # Centré horizontalement
+                        x=new_x,  # Position alignée à droite avec marge
                         y=0,  # Position ajustée selon vos besoins
                         width=logo_width,
                         height=logo_height,
@@ -272,8 +280,37 @@ def generate_attendance():
                 except Exception as e:
                     print(f"Erreur lors du chargement du logo: {e}")
 
+                # Ajouter "Certifié exact pour le CFA GH le :" et la date
+                p.setFont("Helvetica", 12)
+                cert_text = "Certifié exact pour le CFA GH le :"
+                p.drawString(50, table_y - 40, cert_text)
+
+                # Ajouter un rectangle vide avec "Cachet de l'entreprise" en petit et italique
+                # Définir les dimensions du rectangle
+                rect_width = 200
+                rect_height = 50
+                rect_x = 50
+                rect_y = table_y - 100  # Position ajustée selon l'espace disponible
+
+                p.rect(rect_x, rect_y, rect_width, rect_height, stroke=1, fill=0)
+
+                padding_x = 10  # Espacement horizontal depuis la gauche du rectangle
+                padding_y = 10  # Espacement vertical depuis le haut du rectangle
+
+                # Définir une taille de police réduite
+                p.setFont("Helvetica-Oblique", 8)  # Taille de police réduite à 8
+
+                cachet_text = "Cachet de l'entreprise"
+
+                # Calculer la position `y` pour aligner le texte en haut à gauche
+                text_x = rect_x + padding_x
+                text_y = rect_y + rect_height - padding_y - 8  # 8 est la taille de la police
+
+                p.drawString(text_x, text_y, cachet_text)
+
                 p.showPage()
 
+        # Sauvegarder et envoyer le PDF
         p.save()
         buffer.seek(0)
         return send_file(buffer, as_attachment=True, download_name="feuille_emargement.pdf", mimetype='application/pdf')
