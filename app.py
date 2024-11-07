@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import io
+import os
 
 # Importations pour la génération de PDF avec ReportLab
 from reportlab.lib.pagesizes import A4
@@ -12,10 +13,9 @@ from reportlab.lib.units import mm  # Pour les unités en millimètres
 
 # Configurations Flask et SQLAlchemy
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///emargement.db'
-app.config['SECRET_KEY'] = 'votre_clé_secrète'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///emargement.db')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'votre_clé_secrète')
 db = SQLAlchemy(app)
-
 
 # Définir les options pour les sites et les formations
 SITE_OPTIONS = [
@@ -133,7 +133,7 @@ def delete_candidate(candidate_id):
     db.session.delete(candidate)
     db.session.commit()
     flash("Candidat supprimé avec succès.")
-    return redirect(url_for('session_detail', session_id=candidate.session_id))
+    return redirect(url_for('session_details', session_id=candidate.session_id))
 
 # Route pour lister les sessions
 @app.route('/sessions')
@@ -153,122 +153,132 @@ def delete_session(session_id):
 # Route pour générer une feuille d'émargement
 @app.route('/generate_attendance', methods=['GET', 'POST'])
 def generate_attendance():
+    sessions = Session.query.all()
     if request.method == 'POST':
         session_id = request.form.get('session_id')
         periode_id = request.form.get('periode_id')
         candidate_id = request.form.get('candidate_id')
         all_candidates = request.form.get('all_candidates')
+        all_periodes = request.form.get('all_periodes')  # Nouvelle variable
 
         session_obj = Session.query.get(session_id)
-        periode = Periode.query.get(periode_id)
 
-        if not session_obj or not periode:
-            flash("Session ou période invalide.")
+        if not session_obj:
+            flash("Session invalide.")
             return redirect(url_for('generate_attendance'))
 
-        if all_candidates:
-            candidates = session_obj.candidats
+        # Déterminer les périodes à utiliser
+        if all_periodes:
+            periodes = session_obj.periodes
         else:
-            candidate = Candidate.query.get(candidate_id)
-            if not candidate:
+            periode = Periode.query.get(periode_id)
+            if not periode:
+                flash("Période invalide.")
+                return redirect(url_for('generate_attendance'))
+            periodes = [periode]
+
+        # Déterminer les candidats à utiliser
+        if all_candidates:
+            candidats = session_obj.candidats
+        else:
+            candidat = Candidate.query.get(candidate_id)
+            if not candidat:
                 flash("Candidat invalide.")
                 return redirect(url_for('generate_attendance'))
-            candidates = [candidate]
+            candidats = [candidat]
 
         # Générer le PDF
         buffer = io.BytesIO()
         p = canvas.Canvas(buffer, pagesize=A4)
         width, height = A4
 
-        for idx, candidate in enumerate(candidates):
-            # Titre centré en gras
-            p.setFont("Helvetica-Bold", 18)
-            title = "FEUILLE ÉMARGEMENT CFA"
-            title_width = p.stringWidth(title, "Helvetica-Bold", 18)
-            p.drawString((width - title_width) / 2, height - 60, title)
+        for periode in periodes:
+            for candidat in candidats:
+                # Titre centré en gras
+                p.setFont("Helvetica-Bold", 18)
+                title = "FEUILLE ÉMARGEMENT CFA"
+                title_width = p.stringWidth(title, "Helvetica-Bold", 18)
+                p.drawString((width - title_width) / 2, height - 60, title)
 
-            # Nom de la session en italique, centré
-            p.setFont("Helvetica-Oblique", 14)
-            session_title = session_obj.get_display_name()  # Remplace "LA SESSION" par le nom de la session
-            session_title_width = p.stringWidth(session_title, "Helvetica-Oblique", 14)
-            p.drawString((width - session_title_width) / 2, height - 80, session_title)
+                # Nom de la session en italique, centré
+                p.setFont("Helvetica-Oblique", 14)
+                session_title = session_obj.get_display_name()
+                session_title_width = p.stringWidth(session_title, "Helvetica-Oblique", 14)
+                p.drawString((width - session_title_width) / 2, height - 80, session_title)
 
-            # Informations à gauche
-            p.setFont("Helvetica", 12)
-            p.drawString(50, height - 140, f"Candidat : {candidate.prenom} {candidate.nom}")
-            p.drawString(50, height - 160, f"Période : du {periode.date_debut.strftime('%d/%m/%Y')} au {periode.date_fin.strftime('%d/%m/%Y')}")
-            p.drawString(50, height - 180, f"Nombre d'heures à effectuer : {periode.heures}")
+                # Informations à gauche
+                p.setFont("Helvetica", 12)
+                p.drawString(50, height - 140, f"Candidat : {candidat.prenom} {candidat.nom}")
+                p.drawString(50, height - 160, f"Période : du {periode.date_debut.strftime('%d/%m/%Y')} au {periode.date_fin.strftime('%d/%m/%Y')}")
+                p.drawString(50, height - 180, f"Nombre d'heures à effectuer : {periode.heures}")
 
-            # Ajouter de l'espace entre les informations et le tableau
-            espace_entre = 60  # Points d'espace supplémentaire
+                # Ajouter de l'espace entre les informations et le tableau
+                espace_entre = 60  # Points d'espace supplémentaire
 
-            # Tableau pour l'émargement avec des cellules plus hautes et 6 colonnes
-            data = [
-                ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature"]
-            ]
-            for day in range(0, (periode.date_fin - periode.date_debut).days + 1):
-                date = periode.date_debut + timedelta(days=day)
-                data.append([
-                    date.strftime('%d/%m/%Y'),
-                    "",
-                    "",
-                    "",
-                    "",
-                    ""
-                ])
+                # Tableau pour l'émargement avec des cellules plus hautes et 6 colonnes
+                data = [
+                    ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature"]
+                ]
+                for day in range(0, (periode.date_fin - periode.date_debut).days + 1):
+                    date = periode.date_debut + timedelta(days=day)
+                    data.append([
+                        date.strftime('%d/%m/%Y'),
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                    ])
 
-            # Création du tableau avec des cellules plus hautes
-            table = Table(data, colWidths=[70, 70, 100, 70, 100, 80], rowHeights=38)  # rowHeights ajustés à 30
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2FAC66")),  # Couleur d'en-tête
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrer le texte horizontalement
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Centrer le texte verticalement
+                # Création du tableau avec des cellules plus hautes
+                table = Table(data, colWidths=[70, 70, 100, 70, 100, 80], rowHeights=38)
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2FAC66")),  # Couleur d'en-tête
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrer le texte horizontalement
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Centrer le texte verticalement
+                ]))
+                table.wrapOn(p, width, height)
+                # Positionnement du tableau avec espace supplémentaire
+                table_x = 50
+                table_y = height - 280 - espace_entre - (len(data) * 28)  # Ajustez cette formule si nécessaire
+                if table_y < 150:  # Assurez-vous que le tableau ne sort pas de la page
+                    table_y = 150
+                table.drawOn(p, table_x, table_y)
 
-            ]))
-            table.wrapOn(p, width, height)
-            # Positionnement du tableau avec espace supplémentaire
-            table_x = 50
-            table_y = height - 280 - espace_entre - (len(data) * 28)  # Ajustez cette formule si nécessaire
-            if table_y < 150:  # Assurez-vous que le tableau ne sort pas de la page
-                table_y = 150
-            table.drawOn(p, table_x, table_y)
+                # Pied de page avec numéro de page (optionnel)
+                p.setFont("Helvetica", 10)
+                p.drawString(width - 100, 20, f"Page {p.getPageNumber()}")
 
-            # Pied de page avec numéro de page (optionnel)
-            p.setFont("Helvetica", 10)
-            p.drawString(width - 100, 20, f"Page {idx + 1}")
+                # Ajouter le logo au centre en bas et plus grand
+                try:
+                    logo_path = 'static/logo.png'  # Assurez-vous que le logo est dans le dossier static
+                    # Dimensions du logo en points (72 points = 1 inch)
+                    logo_width = 150  # Largeur du logo en points
+                    logo_height = 150  # Hauteur du logo en points
+                    p.drawImage(
+                        logo_path,
+                        x=(width - logo_width) / 2,  # Centré horizontalement
+                        y=0,  # Position ajustée selon vos besoins
+                        width=logo_width,
+                        height=logo_height,
+                        preserveAspectRatio=True,
+                        mask='auto'
+                    )
+                except Exception as e:
+                    print(f"Erreur lors du chargement du logo: {e}")
 
-            # Ajouter le logo au centre en bas et plus grand
-            try:
-                logo_path = 'static/logo.png'  # Assurez-vous que le logo est dans le dossier static
-                # Dimensions du logo en points (72 points = 1 inch)
-                logo_width = 150  # Largeur du logo en points
-                logo_height = 150  # Hauteur du logo en points
-                p.drawImage(
-                    logo_path,
-                    x=(width - logo_width) / 2,  # Centré horizontalement
-                    y=0,  # Position ajustée selon vos besoins
-                    width=logo_width,
-                    height=logo_height,
-                    preserveAspectRatio=True,
-                    mask='auto'
-                )
-            except Exception as e:
-                print(f"Erreur lors du chargement du logo: {e}")
-
-            p.showPage()
+                p.showPage()
 
         p.save()
         buffer.seek(0)
         return send_file(buffer, as_attachment=True, download_name="feuille_emargement.pdf", mimetype='application/pdf')
     else:
-        sessions = Session.query.all()
         return render_template('attendance_sheet.html', sessions=sessions)
-
 
 @app.route('/session/<int:session_id>/edit_name', methods=['POST'])
 def edit_session_name(session_id):
@@ -302,7 +312,6 @@ def get_candidates(session_id):
     candidates = Candidate.query.filter_by(session_id=session_id).all()
     candidates_data = [{"id": c.id, "nom": c.nom, "prenom": c.prenom} for c in candidates]
     return jsonify({"candidates": candidates_data})
-
 
 if __name__ == '__main__':
     app.run(debug=True)

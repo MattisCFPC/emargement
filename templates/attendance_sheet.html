@@ -26,6 +26,12 @@
             </select>
         </div>
 
+        <!-- Checkbox pour Toutes les Périodes -->
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="all_periodes" id="allPeriodesCheckbox" value="1">
+            <label class="form-check-label" for="allPeriodesCheckbox">Toutes les périodes</label>
+        </div>
+
         <!-- Sélection du Candidat -->
         <div class="mb-3">
             <label for="candidateSelect" class="form-label">Candidat :</label>
@@ -95,6 +101,17 @@
                 candidateSelect.value = "";  // Réinitialiser la sélection
             } else {
                 candidateSelect.disabled = false;
+            }
+        });
+
+        // Désactiver le sélecteur de période si "Toutes les périodes" est cochée
+        document.getElementById('allPeriodesCheckbox').addEventListener('change', function() {
+            var periodeSelect = document.getElementById('periodeSelect');
+            if (this.checked) {
+                periodeSelect.disabled = true;
+                periodeSelect.value = "";  // Réinitialiser la sélection
+            } else {
+                periodeSelect.disabled = false;
             }
         });
     });
