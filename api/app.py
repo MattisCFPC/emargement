@@ -256,7 +256,7 @@ def cancel_session(session_id):
 
 @app.route('/generate_attendance', methods=['GET', 'POST'])
 def generate_attendance():
-    sessions_ref = db.collection('sessions')
+    sessions_ref = db.collection('sessions').order_by('session_number')
     sessions = []
     for doc in sessions_ref.stream():
         session = doc.to_dict()
