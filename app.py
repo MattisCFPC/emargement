@@ -1,13 +1,14 @@
 # app.py
 
+import os
+import json
+import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
+import firebase_admin
+from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
 import io
-import os
 import uuid
-from urllib.parse import urlparse
 
 # Importations pour la génération de PDF avec ReportLab
 from reportlab.lib.pagesizes import A4
@@ -16,26 +17,21 @@ from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib.units import mm
 
-# Configurations Flask et SQLAlchemy
+# Configurations Flask
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '69ab798216b0750069ed00d627db19efc6b91467b9fbff419bfd2dee047ebc8d')
 
-# Définir le répertoire de base absolu
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+# Initialiser Firebase avec la clé décryptée
+firebase_service_account_b64 = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+if not firebase_service_account_b64:
+    raise ValueError("La variable d'environnement FIREBASE_SERVICE_ACCOUNT n'est pas définie.")
 
-# Configuration de l'URI de la base de données avec un chemin absolu
-DATABASE_URI = os.getenv('DATABASE_URI')
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'votre_clé_secrète')
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+service_account_info = json.loads(base64.b64decode(firebase_service_account_b64))
+cred = credentials.Certificate(service_account_info)
+firebase_admin.initialize_app(cred)
 
-# Afficher le chemin absolu de la base de données utilisée (pour debug)
-parsed_url = urlparse(DATABASE_URI)
-if parsed_url.scheme == 'sqlite':
-    db_path = os.path.abspath(os.path.join(parsed_url.netloc, parsed_url.path))
-    print(f"Chemin absolu de la base de données SQLite utilisée : {db_path}")
-else:
-    print("La base de données utilisée n'est pas SQLite.")
+# Initialiser Firestore
+db = firestore.client()
 
 # Définir les options pour les sites et les formations
 SITE_OPTIONS = [
@@ -53,43 +49,6 @@ FORMATION_OPTIONS = [
     "Conducteur d'engins de Chantier"
 ]
 
-# Modèles de base (Session, Candidate, Periode)
-class Session(db.Model):
-    __tablename__ = 'session'
-    id = db.Column(db.Integer, primary_key=True)
-    code_session = db.Column(db.String(50), nullable=False, unique=True, default=lambda: f"CS-{uuid.uuid4().hex[:6].upper()}")
-    site = db.Column(db.String(100), nullable=False)
-    formation = db.Column(db.String(200), nullable=False)
-    annule = db.Column(db.Boolean, default=False)
-    candidats = db.relationship('Candidate', back_populates='session', lazy=True, cascade="all, delete-orphan")
-    periodes = db.relationship('Periode', back_populates='session', lazy=True, cascade="all, delete-orphan")
-
-    def get_display_name(self):
-        return f"{self.id} - {self.formation} {self.site}"
-
-class Candidate(db.Model):
-    __tablename__ = 'candidate'
-    id = db.Column(db.Integer, primary_key=True)
-    nom = db.Column(db.String(100), nullable=False)
-    prenom = db.Column(db.String(100), nullable=False)
-    session_id = db.Column(db.Integer, db.ForeignKey('session.id'), nullable=False)
-    session = db.relationship('Session', back_populates='candidats')
-
-    def __repr__(self):
-        return f"<Candidate {self.prenom} {self.nom}>"
-
-class Periode(db.Model):
-    __tablename__ = 'periode'
-    id = db.Column(db.Integer, primary_key=True)
-    date_debut = db.Column(db.Date, nullable=False)
-    date_fin = db.Column(db.Date, nullable=False)
-    heures = db.Column(db.Integer, nullable=False)
-    session_id = db.Column(db.Integer, db.ForeignKey('session.id'), nullable=False)
-    session = db.relationship('Session', back_populates='periodes')
-
-    def __repr__(self):
-        return f"<Periode {self.date_debut} - {self.date_fin}>"
-
 # Routes
 @app.route('/')
 def index():
@@ -106,21 +65,36 @@ def create_session():
             flash("Option de site ou de formation invalide.", "danger")
             return redirect(url_for('create_session'))
 
-        # Créer une nouvelle session avec le code_session généré automatiquement
-        session_obj = Session(site=site, formation=formation)
-        db.session.add(session_obj)
-        db.session.commit()
+        # Créer une nouvelle session avec un identifiant unique
+        session_data = {
+            'code_session': f"CS-{uuid.uuid4().hex[:6].upper()}",
+            'site': site,
+            'formation': formation,
+            'annule': False,
+            'created_at': firestore.SERVER_TIMESTAMP
+        }
+        sessions_ref = db.collection('sessions')
+        session_doc_ref = sessions_ref.add(session_data)[1]  # (reference, document)
+
+        session_id = session_doc_ref.id
 
         # Ajouter les candidats
-        candidats_data = zip(request.form.getlist('nom'), request.form.getlist('prenom'))
-        for nom, prenom in candidats_data:
+        noms = request.form.getlist('nom')
+        prenoms = request.form.getlist('prenom')
+        for nom, prenom in zip(noms, prenoms):
             if nom.strip() and prenom.strip():
-                candidat = Candidate(nom=nom, prenom=prenom, session=session_obj)
-                db.session.add(candidat)
+                candidat_data = {
+                    'nom': nom.strip(),
+                    'prenom': prenom.strip(),
+                    'session_id': session_id,
+                    'created_at': firestore.SERVER_TIMESTAMP
+                }
+                db.collection('candidats').add(candidat_data)
 
         # Ajouter les périodes
-        periodes_data = zip(request.form.getlist('date_debut'), request.form.getlist('date_fin'))
-        for date_debut, date_fin in periodes_data:
+        dates_debut = request.form.getlist('date_debut')
+        dates_fin = request.form.getlist('date_fin')
+        for date_debut, date_fin in zip(dates_debut, dates_fin):
             if date_debut and date_fin:
                 try:
                     date_debut_dt = datetime.strptime(date_debut, '%Y-%m-%d').date()
@@ -128,8 +102,14 @@ def create_session():
                     if date_debut_dt <= date_fin_dt:
                         nb_jours = (date_fin_dt - date_debut_dt).days + 1
                         heures = nb_jours * 7
-                        periode = Periode(date_debut=date_debut_dt, date_fin=date_fin_dt, heures=heures, session=session_obj)
-                        db.session.add(periode)
+                        periode_data = {
+                            'date_debut': date_debut_dt.strftime('%d/%m/%Y'),
+                            'date_fin': date_fin_dt.strftime('%d/%m/%Y'),
+                            'heures': heures,
+                            'session_id': session_id,
+                            'created_at': firestore.SERVER_TIMESTAMP
+                        }
+                        db.collection('periodes').add(periode_data)
                     else:
                         flash("Erreur : La date de début doit être antérieure ou égale à la date de fin.", "danger")
                         return redirect(url_for('create_session'))
@@ -137,7 +117,6 @@ def create_session():
                     flash("Format de date invalide. Veuillez utiliser le format AAAA-MM-JJ.", "danger")
                     return redirect(url_for('create_session'))
 
-        db.session.commit()
         flash("Session créée avec succès.", "success")
         return redirect(url_for('success'))
     else:
@@ -147,47 +126,106 @@ def create_session():
 def success():
     return render_template('success.html')
 
-@app.route('/session/<int:session_id>', methods=['GET'])
+@app.route('/session/<string:session_id>', methods=['GET'])
 def session_details(session_id):
-    session_obj = Session.query.get_or_404(session_id)
-    candidates = session_obj.candidats
-    return render_template('session_details.html', session=session_obj, candidates=candidates)
+    session_ref = db.collection('sessions').document(session_id)
+    session = session_ref.get()
+    if not session.exists:
+        flash("Session non trouvée.", "danger")
+        return redirect(url_for('list_sessions'))
+    session_data = session.to_dict()
+    session_data['id'] = session.id
 
-@app.route('/delete_candidate/<int:candidate_id>', methods=['POST'])
+    # Récupérer les candidats
+    candidats_ref = db.collection('candidats').where('session_id', '==', session_id)
+    candidats = []
+    for doc in candidats_ref.stream():
+        candidat = doc.to_dict()
+        candidat['id'] = doc.id
+        candidats.append(candidat)
+
+    # Récupérer les périodes
+    periodes_ref = db.collection('periodes').where('session_id', '==', session_id)
+    periodes = []
+    for doc in periodes_ref.stream():
+        periode = doc.to_dict()
+        periode['id'] = doc.id
+        periodes.append(periode)
+
+    return render_template('session_details.html', session=session_data, candidates=candidats, periodes=periodes)
+
+@app.route('/delete_candidate/<string:candidate_id>', methods=['POST'])
 def delete_candidate(candidate_id):
-    candidate = Candidate.query.get_or_404(candidate_id)
-    db.session.delete(candidate)
-    db.session.commit()
+    candidate_ref = db.collection('candidats').document(candidate_id)
+    candidate = candidate_ref.get()
+    if not candidate.exists:
+        flash("Candidat non trouvé.", "danger")
+        return redirect(url_for('list_sessions'))
+    
+    session_id = candidate.to_dict()['session_id']
+    candidate_ref.delete()
     flash("Candidat supprimé avec succès.", "success")
-    return redirect(url_for('session_details', session_id=candidate.session_id))
+    return redirect(url_for('session_details', session_id=session_id))
 
 @app.route('/sessions')
 def list_sessions():
-    sessions = Session.query.all()
+    sessions = []
+    sessions_ref = db.collection('sessions').order_by('created_at', direction=firestore.Query.DESCENDING)
+    for doc in sessions_ref.stream():
+        session = doc.to_dict()
+        session['id'] = doc.id
+        sessions.append(session)
     return render_template('sessions.html', sessions=sessions)
 
-@app.route('/delete_session/<int:session_id>', methods=['POST'])
+@app.route('/delete_session/<string:session_id>', methods=['POST'])
 def delete_session(session_id):
-    session_obj = Session.query.get_or_404(session_id)
-    db.session.delete(session_obj)
-    db.session.commit()
+    session_ref = db.collection('sessions').document(session_id)
+    session = session_ref.get()
+    if not session.exists:
+        flash("Session non trouvée.", "danger")
+        return redirect(url_for('list_sessions'))
+    
+    # Supprimer tous les candidats liés
+    candidats_ref = db.collection('candidats').where('session_id', '==', session_id)
+    for doc in candidats_ref.stream():
+        doc.reference.delete()
+    
+    # Supprimer toutes les périodes liées
+    periodes_ref = db.collection('periodes').where('session_id', '==', session_id)
+    for doc in periodes_ref.stream():
+        doc.reference.delete()
+    
+    # Supprimer la session
+    session_ref.delete()
     flash("Session supprimée avec succès.", "success")
     return redirect(url_for('list_sessions'))
 
-@app.route('/cancel_session/<int:session_id>', methods=['POST'])
+@app.route('/cancel_session/<string:session_id>', methods=['POST'])
 def cancel_session(session_id):
-    session_obj = Session.query.get_or_404(session_id)
-    if session_obj.annule:
+    session_ref = db.collection('sessions').document(session_id)
+    session = session_ref.get()
+    if not session.exists:
+        flash("Session non trouvée.", "danger")
+        return redirect(url_for('list_sessions'))
+    
+    session_data = session.to_dict()
+    if session_data.get('annule', False):
         flash("La session est déjà annulée.", "info")
     else:
-        session_obj.annule = True
-        db.session.commit()
+        session_ref.update({'annule': True})
         flash("La session a été annulée avec succès.", "success")
+    
     return redirect(url_for('list_sessions'))
 
 @app.route('/generate_attendance', methods=['GET', 'POST'])
 def generate_attendance():
-    sessions = Session.query.all()
+    sessions_ref = db.collection('sessions')
+    sessions = []
+    for doc in sessions_ref.stream():
+        session = doc.to_dict()
+        session['id'] = doc.id
+        sessions.append(session)
+    
     if request.method == 'POST':
         session_id = request.form.get('session_id')
         periode_id = request.form.get('periode_id')
@@ -195,31 +233,36 @@ def generate_attendance():
         all_candidates = request.form.get('all_candidates')
         all_periodes = request.form.get('all_periodes')
 
-        session_obj = Session.query.get(session_id)
-
-        if not session_obj:
+        session_ref = db.collection('sessions').document(session_id)
+        session = session_ref.get()
+        if not session.exists:
             flash("Session invalide.", "danger")
             return redirect(url_for('generate_attendance'))
+        session_data = session.to_dict()
 
         # Déterminer les périodes à utiliser
         if all_periodes:
-            periodes = session_obj.periodes
+            periodes_ref = db.collection('periodes').where('session_id', '==', session_id)
+            periodes = [p.to_dict() for p in periodes_ref.stream()]
         else:
-            periode = Periode.query.get(periode_id)
-            if not periode:
+            periode_ref = db.collection('periodes').document(periode_id)
+            periode = periode_ref.get()
+            if not periode.exists:
                 flash("Période invalide.", "danger")
                 return redirect(url_for('generate_attendance'))
-            periodes = [periode]
+            periodes = [periode.to_dict()]
 
         # Déterminer les candidats à utiliser
         if all_candidates:
-            candidats = session_obj.candidats
+            candidats_ref = db.collection('candidats').where('session_id', '==', session_id)
+            candidats = [c.to_dict() for c in candidats_ref.stream()]
         else:
-            candidat = Candidate.query.get(candidate_id)
-            if not candidat:
+            candidat_ref = db.collection('candidats').document(candidate_id)
+            candidat = candidat_ref.get()
+            if not candidat.exists:
                 flash("Candidat invalide.", "danger")
                 return redirect(url_for('generate_attendance'))
-            candidats = [candidat]
+            candidats = [candidat.to_dict()]
 
         # Générer le PDF
         buffer = io.BytesIO()
@@ -239,7 +282,7 @@ def generate_attendance():
 
                 # Nom de la session en italique, centré
                 p.setFont("Helvetica-Oblique", 14)
-                session_title = session_obj.get_display_name()
+                session_title = session_data.get('code_session', 'Session') + f" - {session_data.get('formation', '')} {session_data.get('site', '')}"
                 session_title_width = p.stringWidth(session_title, "Helvetica-Oblique", 14)
                 p.drawString((width - session_title_width) / 2, current_y, session_title)
 
@@ -248,28 +291,34 @@ def generate_attendance():
 
                 # Informations à gauche
                 p.setFont("Helvetica", 10)
-                p.drawString(50, current_y, f"Candidat : {candidat.prenom} {candidat.nom}")
+                p.drawString(50, current_y, f"Candidat : {candidat.get('prenom', '')} {candidat.get('nom', '')}")
                 current_y -= 12  # Espace entre les lignes
-                p.drawString(50, current_y, f"Période : du {periode.date_debut.strftime('%d/%m/%Y')} au {periode.date_fin.strftime('%d/%m/%Y')}")
+                p.drawString(50, current_y, f"Période : du {periode.get('date_debut', '')} au {periode.get('date_fin', '')}")
                 current_y -= 12
-                p.drawString(50, current_y, f"Nombre d'heures à effectuer : {periode.heures}")
+                p.drawString(50, current_y, f"Nombre d'heures à effectuer : {periode.get('heures', 0)}")
                 current_y -= 15  # Espace supplémentaire avant le tableau
 
                 # Tableau pour l'émargement avec une colonne "Signature CFA"
                 data = [
                     ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature", "Signature CFA"]
                 ]
-                for day in range(0, (periode.date_fin - periode.date_debut).days + 1):
-                    date = periode.date_debut + timedelta(days=day)
-                    data.append([
-                        date.strftime('%d/%m/%Y'),
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        ""
-                    ])
+                try:
+                    date_debut_dt = datetime.strptime(periode.get('date_debut', '01/01/1970'), '%d/%m/%Y').date()
+                    date_fin_dt = datetime.strptime(periode.get('date_fin', '01/01/1970'), '%d/%m/%Y').date()
+                    for day in range(0, (date_fin_dt - date_debut_dt).days + 1):
+                        date = date_debut_dt + timedelta(days=day)
+                        data.append([
+                            date.strftime('%d/%m/%Y'),
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                        ])
+                except Exception as e:
+                    flash(f"Erreur de format de date : {e}", "danger")
+                    return redirect(url_for('generate_attendance'))
 
                 # Déterminer la hauteur des lignes en fonction du nombre de dates
                 nb_dates = len(data) - 1
@@ -343,40 +392,56 @@ def generate_attendance():
     else:
         return render_template('attendance_sheet.html', sessions=sessions)
 
-@app.route('/session/<int:session_id>/edit_name', methods=['POST'])
+@app.route('/session/<string:session_id>/edit_name', methods=['POST'])
 def edit_session_name(session_id):
-    session = Session.query.get_or_404(session_id)
+    session_ref = db.collection('sessions').document(session_id)
+    session = session_ref.get()
+    if not session.exists:
+        flash("Session non trouvée.", "danger")
+        return redirect(url_for('list_sessions'))
+    
     new_name = request.form.get('new_name')
     
     # Séparer la formation et le site dans le champ de saisie
     if " - " in new_name:
         formation, site = new_name.split(" - ", 1)
-        session.formation = formation.strip()
-        session.site = site.strip()
-        db.session.commit()
+        formation = formation.strip()
+        site = site.strip()
+        session_ref.update({
+            'formation': formation,
+            'site': site
+        })
         flash("Nom et site de la session mis à jour avec succès.", "success")
     else:
         flash("Veuillez utiliser le format : 'Nom de la formation - Site'.", "warning")
     return redirect(url_for('list_sessions'))
 
-@app.route('/get_periodes/<int:session_id>')
+@app.route('/get_periodes/<string:session_id>')
 def get_periodes(session_id):
-    periodes = Periode.query.filter_by(session_id=session_id).all()
+    periodes_ref = db.collection('periodes').where('session_id', '==', session_id)
     periodes_data = [
-        {"id": p.id, "date_debut": p.date_debut.strftime('%d/%m/%Y'), "date_fin": p.date_fin.strftime('%d/%m/%Y')}
-        for p in periodes
+        {"id": p.id, "date_debut": p.to_dict().get('date_debut', ''), "date_fin": p.to_dict().get('date_fin', '')}
+        for p in periodes_ref.stream()
     ]
     return jsonify({"periodes": periodes_data})
 
-@app.route('/get_candidates/<int:session_id>')
+@app.route('/get_candidates/<string:session_id>')
 def get_candidates(session_id):
-    candidates = Candidate.query.filter_by(session_id=session_id).all()
-    candidates_data = [{"id": c.id, "nom": c.nom, "prenom": c.prenom} for c in candidates]
+    candidats_ref = db.collection('candidats').where('session_id', '==', session_id)
+    candidates_data = [
+        {"id": c.id, "nom": c.to_dict().get('nom', ''), "prenom": c.to_dict().get('prenom', '')}
+        for c in candidats_ref.stream()
+    ]
     return jsonify({"candidates": candidates_data})
 
-@app.route('/session/<int:session_id>/add_candidate', methods=['POST'])
+@app.route('/session/<string:session_id>/add_candidate', methods=['POST'])
 def add_candidate(session_id):
-    session_obj = Session.query.get_or_404(session_id)
+    session_ref = db.collection('sessions').document(session_id)
+    session = session_ref.get()
+    if not session.exists:
+        flash("Session non trouvée.", "danger")
+        return redirect(url_for('list_sessions'))
+    
     nom = request.form.get('nom')
     prenom = request.form.get('prenom')
 
@@ -385,25 +450,24 @@ def add_candidate(session_id):
         return redirect(url_for('session_details', session_id=session_id))
 
     # Optionnel : vérifier si le candidat existe déjà dans la session
-    existing_candidate = Candidate.query.filter_by(nom=nom.strip(), prenom=prenom.strip(), session_id=session_id).first()
-    if existing_candidate:
+    candidats_ref = db.collection('candidats').where('session_id', '==', session_id)\
+                                           .where('nom', '==', nom.strip())\
+                                           .where('prenom', '==', prenom.strip())
+    if list(candidats_ref.stream()):
         flash("Ce candidat est déjà inscrit dans cette session.", "info")
         return redirect(url_for('session_details', session_id=session_id))
 
     # Créer un nouveau candidat
-    new_candidate = Candidate(nom=nom.strip(), prenom=prenom.strip(), session=session_obj)
-    db.session.add(new_candidate)
-
-    try:
-        db.session.commit()
-        flash(f"Candidat {prenom} {nom} ajouté avec succès.", "success")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Erreur lors de l'ajout du candidat : {e}", "danger")
-
+    candidat_data = {
+        'nom': nom.strip(),
+        'prenom': prenom.strip(),
+        'session_id': session_id,
+        'created_at': firestore.SERVER_TIMESTAMP
+    }
+    db.collection('candidats').add(candidat_data)
+    flash(f"Candidat {prenom} {nom} ajouté avec succès.", "success")
     return redirect(url_for('session_details', session_id=session_id))
 
-
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.getenv("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)

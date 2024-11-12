@@ -18,3 +18,9 @@ migrations/
 
 # Dossiers de déploiement
 .vercel/
+
+# Flask Secret Key
+.flask_secret_key
+
+# Firebase Service Account
+firebase_service_account.json
