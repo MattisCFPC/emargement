@@ -1,4 +1,4 @@
-# app.py
+# api/app.py
 
 import os
 import json
@@ -6,7 +6,6 @@ import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify
 from datetime import datetime, timedelta
 import io
-import uuid
 from dotenv import load_dotenv
 import warnings
 from urllib3.exceptions import NotOpenSSLWarning
@@ -24,15 +23,8 @@ warnings.simplefilter('ignore', NotOpenSSLWarning)
 # Charger les variables d'environnement depuis .env
 load_dotenv()
 
-# Importations pour la génération de PDF avec ReportLab
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
-from reportlab.platypus import Table, TableStyle
-from reportlab.lib.units import mm
-
 # Configurations Flask
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Pas de valeur par défaut
 
 # Vérifier que la clé secrète est définie
@@ -509,6 +501,6 @@ def add_candidate(session_id):
     flash(f"Candidat {prenom} {nom} ajouté avec succès.", "success")
     return redirect(url_for('session_details', session_id=session_id))
 
-if __name__ == '__main__':
-    port = int(os.getenv("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+#if __name__ == '__main__':
+#    port = int(os.getenv("PORT", 5000))
+#       app.run(host='0.0.0.0', port=port, debug=False)
