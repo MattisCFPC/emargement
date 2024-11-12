@@ -4,11 +4,25 @@ import os
 import json
 import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify
-import firebase_admin
-from firebase_admin import credentials, firestore
 from datetime import datetime, timedelta
 import io
 import uuid
+from dotenv import load_dotenv
+import warnings
+from urllib3.exceptions import NotOpenSSLWarning
+import logging
+
+# Importations pour Firestore
+from google.cloud import firestore
+from google.oauth2 import service_account
+import firebase_admin
+from firebase_admin import credentials
+
+# Ignorer les avertissements NotOpenSSLWarning (facultatif)
+warnings.simplefilter('ignore', NotOpenSSLWarning)
+
+# Charger les variables d'environnement depuis .env
+load_dotenv()
 
 # Importations pour la génération de PDF avec ReportLab
 from reportlab.lib.pagesizes import A4
@@ -19,19 +33,31 @@ from reportlab.lib.units import mm
 
 # Configurations Flask
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '69ab798216b0750069ed00d627db19efc6b91467b9fbff419bfd2dee047ebc8d')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')  # Pas de valeur par défaut
+
+# Vérifier que la clé secrète est définie
+if not app.config['SECRET_KEY']:
+    raise ValueError("La variable d'environnement SECRET_KEY n'est pas définie.")
 
 # Initialiser Firebase avec la clé décryptée
 firebase_service_account_b64 = os.getenv('FIREBASE_SERVICE_ACCOUNT')
 if not firebase_service_account_b64:
     raise ValueError("La variable d'environnement FIREBASE_SERVICE_ACCOUNT n'est pas définie.")
 
-service_account_info = json.loads(base64.b64decode(firebase_service_account_b64))
+try:
+    service_account_info = json.loads(base64.b64decode(firebase_service_account_b64))
+except Exception as e:
+    raise ValueError(f"Erreur lors du décodage de FIREBASE_SERVICE_ACCOUNT : {e}")
+
+# Initialiser Firebase Admin SDK
 cred = credentials.Certificate(service_account_info)
 firebase_admin.initialize_app(cred)
 
-# Initialiser Firestore
-db = firestore.client()
+# Créer les credentials pour google.cloud.firestore
+credentials = service_account.Credentials.from_service_account_info(service_account_info)
+
+# Initialiser Firestore avec les credentials appropriés
+db = firestore.Client(credentials=credentials)
 
 # Définir les options pour les sites et les formations
 SITE_OPTIONS = [
@@ -49,6 +75,9 @@ FORMATION_OPTIONS = [
     "Conducteur d'engins de Chantier"
 ]
 
+# Configurer le logging
+logging.basicConfig(level=logging.DEBUG)
+
 # Routes
 @app.route('/')
 def index():
@@ -63,20 +92,26 @@ def create_session():
         # Validation des champs
         if site not in SITE_OPTIONS or formation not in FORMATION_OPTIONS:
             flash("Option de site ou de formation invalide.", "danger")
+            logging.warning("Option de site ou de formation invalide.")
             return redirect(url_for('create_session'))
 
-        # Créer une nouvelle session avec un identifiant unique
+        # Obtenir le nombre actuel de sessions
+        sessions_ref = db.collection('sessions')
+        sessions_count = len(list(sessions_ref.stream()))
+        session_number = sessions_count + 1
+
+        # Créer une nouvelle session avec le numéro séquentiel
+        session_ref = db.collection('sessions').document()
         session_data = {
-            'code_session': f"CS-{uuid.uuid4().hex[:6].upper()}",
+            'session_number': session_number,
             'site': site,
             'formation': formation,
             'annule': False,
             'created_at': firestore.SERVER_TIMESTAMP
         }
-        sessions_ref = db.collection('sessions')
-        session_doc_ref = sessions_ref.add(session_data)[1]  # (reference, document)
-
-        session_id = session_doc_ref.id
+        session_ref.set(session_data)
+        logging.debug(f"Session créée avec l'ID {session_ref.id} et le numéro {session_number}.")
+        session_id = session_ref.id
 
         # Ajouter les candidats
         noms = request.form.getlist('nom')
@@ -90,6 +125,7 @@ def create_session():
                     'created_at': firestore.SERVER_TIMESTAMP
                 }
                 db.collection('candidats').add(candidat_data)
+                logging.debug(f"Candidat ajouté : {prenom} {nom}.")
 
         # Ajouter les périodes
         dates_debut = request.form.getlist('date_debut')
@@ -110,21 +146,25 @@ def create_session():
                             'created_at': firestore.SERVER_TIMESTAMP
                         }
                         db.collection('periodes').add(periode_data)
+                        logging.debug(f"Période ajoutée : {date_debut} au {date_fin}, Heures : {heures}.")
                     else:
                         flash("Erreur : La date de début doit être antérieure ou égale à la date de fin.", "danger")
+                        logging.warning("Date de début postérieure à la date de fin.")
                         return redirect(url_for('create_session'))
                 except ValueError:
                     flash("Format de date invalide. Veuillez utiliser le format AAAA-MM-JJ.", "danger")
+                    logging.warning("Format de date invalide.")
                     return redirect(url_for('create_session'))
 
-        flash("Session créée avec succès.", "success")
-        return redirect(url_for('success'))
+        flash(f"Session créée avec succès. Numéro de session : {session_number}", "success")
+        return redirect(url_for('success', session_number=session_number))
     else:
         return render_template('create_session.html', site_options=SITE_OPTIONS, formation_options=FORMATION_OPTIONS)
 
 @app.route('/success')
 def success():
-    return render_template('success.html')
+    session_number = request.args.get('session_number')
+    return render_template('success.html', session_number=session_number)
 
 @app.route('/session/<string:session_id>', methods=['GET'])
 def session_details(session_id):
@@ -270,6 +310,13 @@ def generate_attendance():
         width, height = A4
 
         for periode in periodes:
+            try:
+                date_debut_dt = datetime.strptime(periode.get('date_debut', '01/01/1970'), '%d/%m/%Y').date()
+                date_fin_dt = datetime.strptime(periode.get('date_fin', '01/01/1970'), '%d/%m/%Y').date()
+            except Exception as e:
+                flash(f"Erreur de format de date dans la période : {e}", "danger")
+                return redirect(url_for('generate_attendance'))
+            
             for candidat in candidats:
                 # Titre centré en gras
                 p.setFont("Helvetica-Bold", 18)
@@ -282,7 +329,7 @@ def generate_attendance():
 
                 # Nom de la session en italique, centré
                 p.setFont("Helvetica-Oblique", 14)
-                session_title = session_data.get('code_session', 'Session') + f" - {session_data.get('formation', '')} {session_data.get('site', '')}"
+                session_title = f"Session {session_data.get('session_number', 'N/A')} - {session_data.get('formation', '')} {session_data.get('site', '')}"
                 session_title_width = p.stringWidth(session_title, "Helvetica-Oblique", 14)
                 p.drawString((width - session_title_width) / 2, current_y, session_title)
 
@@ -302,23 +349,17 @@ def generate_attendance():
                 data = [
                     ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature", "Signature CFA"]
                 ]
-                try:
-                    date_debut_dt = datetime.strptime(periode.get('date_debut', '01/01/1970'), '%d/%m/%Y').date()
-                    date_fin_dt = datetime.strptime(periode.get('date_fin', '01/01/1970'), '%d/%m/%Y').date()
-                    for day in range(0, (date_fin_dt - date_debut_dt).days + 1):
-                        date = date_debut_dt + timedelta(days=day)
-                        data.append([
-                            date.strftime('%d/%m/%Y'),
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                            ""
-                        ])
-                except Exception as e:
-                    flash(f"Erreur de format de date : {e}", "danger")
-                    return redirect(url_for('generate_attendance'))
+                for day in range(0, (date_fin_dt - date_debut_dt).days + 1):
+                    date = date_debut_dt + timedelta(days=day)
+                    data.append([
+                        date.strftime('%d/%m/%Y'),
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                    ])
 
                 # Déterminer la hauteur des lignes en fonction du nombre de dates
                 nb_dates = len(data) - 1

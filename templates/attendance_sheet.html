@@ -9,7 +9,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-p1QhVYBljkhpQF2jOYx2QZ8qGfNExIMuXwE2XkBIXeR8qpu+YX0EGLc/44yLhVHPKqQYIRm0vYmV5wrYcl+xiw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <style>
     /* Styles supplémentaires si nécessaire */
-    /* Optionally, you can style the "(Annulée)" text differently */
     .annule {
         color: red;
         font-weight: bold;
@@ -28,7 +27,7 @@
                 <option value="" disabled selected>-- Sélectionnez une session --</option>
                 {% for session in sessions %}
                 <option value="{{ session.id }}">
-                    {{ session.id }} - {{ session.formation }} - {{ session.site }}
+                    {{ session.session_number }} - {{ session.formation }} - {{ session.site }}
                     {% if session.annule %}
                         <span class="annule">(Annulée)</span>
                     {% endif %}
@@ -103,7 +102,7 @@
                     data.candidates.forEach(function(candidate) {
                         var option = document.createElement('option');
                         option.value = candidate.id;
-                        option.textContent = `${candidate.id} - ${candidate.prenom} ${candidate.nom}`;
+                        option.textContent = `${candidate.prenom} ${candidate.nom}`;
                         candidatesSelect.appendChild(option);
                     });
                 });

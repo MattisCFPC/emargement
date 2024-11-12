@@ -20,7 +20,7 @@ migrations/
 .vercel/
 
 # Flask Secret Key
-.flask_secret_key
+.env
 
 # Firebase Service Account
 firebase_service_account.json
