@@ -1,3 +1,4 @@
+<!-- templates/session_details.html -->
 {% extends "base.html" %}
 
 {% block title %}Détails de la session{% endblock %}
@@ -5,11 +6,43 @@
 {% block content %}
 <div class="container mt-4">
     <h2>Détails de la session</h2>
+    <p><strong>Code de la Session :</strong> {{ session.code_session }}</p>
     <p><strong>Site :</strong> {{ session.site }}</p>
     <p><strong>Formation :</strong> {{ session.formation }}</p>
+    <p><strong>Annulée :</strong> {{ 'Oui' if session.annule else 'Non' }}</p>
 
-    <h4>Liste des candidats</h4>
-    {% if session.candidats %}
+    <!-- Bouton pour Afficher/Cacher le Formulaire d'Ajout -->
+    <button class="btn btn-primary mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#addCandidateForm" aria-expanded="false" aria-controls="addCandidateForm">
+        <i class="fas fa-user-plus"></i> Ajouter un élève
+    </button>
+
+    <!-- Formulaire d'Ajout de Candidat (Caché Initialement) -->
+    <div class="collapse mt-3" id="addCandidateForm">
+        <div class="card card-body">
+            <form action="{{ url_for('add_candidate', session_id=session.id) }}" method="POST">
+                <!-- Inclure un token CSRF si vous utilisez Flask-WTF -->
+                {% if form %}
+                    {{ form.hidden_tag() }}
+                {% endif %}
+                <div class="mb-3">
+                    <label for="prenom" class="form-label">Prénom</label>
+                    <input type="text" class="form-control" id="prenom" name="prenom" placeholder="Prénom" required>
+                </div>
+                <div class="mb-3">
+                    <label for="nom" class="form-label">Nom</label>
+                    <input type="text" class="form-control" id="nom" name="nom" placeholder="Nom" required>
+                </div>
+                <button type="submit" class="btn btn-success">Ajouter l'Élève</button>
+                <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#addCandidateForm" aria-expanded="false" aria-controls="addCandidateForm">Annuler</button>
+            </form>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Liste des Candidats Actuels -->
+    <h4 class="mt-4">Liste des candidats</h4>
+    {% if candidates %}
     <table class="table table-striped">
         <thead>
             <tr>
@@ -19,7 +52,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for candidat in session.candidats %}
+            {% for candidat in candidates %}
             <tr>
                 <td>{{ candidat.nom }}</td>
                 <td>{{ candidat.prenom }}</td>
@@ -37,7 +70,12 @@
     {% endif %}
 
     <a href="{{ url_for('list_sessions') }}" class="btn btn-secondary">Retour aux sessions</a>
-
-    
 </div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Inclure les scripts Bootstrap (nécessaires pour les fonctionnalités de collapse) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Inclure Font Awesome pour les icônes -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" integrity="sha512-p1QhVYBljkhpQF2jOYx2QZ8qGfNExIMuXwE2XkBIXeR8qpu+YX0EGLc/44yLhVHPKqQYIRm0vYmV5wrYcl+xiw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 {% endblock %}

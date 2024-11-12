@@ -1,119 +1,132 @@
+<!-- templates/attendance_sheet.html -->
+
 {% extends "base.html" %}
 
-{% block title %}Générer une feuille d'émargement{% endblock %}
+{% block title %}Générer une Feuille d'Émargement{% endblock %}
+
+{% block head %}
+<!-- Inclure Font Awesome pour les icônes -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-p1QhVYBljkhpQF2jOYx2QZ8qGfNExIMuXwE2XkBIXeR8qpu+YX0EGLc/44yLhVHPKqQYIRm0vYmV5wrYcl+xiw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+    /* Styles supplémentaires si nécessaire */
+    /* Optionally, you can style the "(Annulée)" text differently */
+    .annule {
+        color: red;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">Générer une feuille d'émargement</h1>
+    <h2>Générer une Feuille d'Émargement</h2>
     <form method="post">
         <!-- Sélection de la Session -->
         <div class="mb-3">
-            <label for="sessionSelect" class="form-label">Session :</label>
-            <select name="session_id" id="sessionSelect" class="form-select" onchange="updatePeriodesAndCandidates()" required>
+            <label for="session_id" class="form-label">Session</label>
+            <select class="form-select" id="session_id" name="session_id" required>
                 <option value="" disabled selected>-- Sélectionnez une session --</option>
                 {% for session in sessions %}
-                <option value="{{ session.id }}">{{ session.get_display_name() }}</option>
+                <option value="{{ session.id }}">
+                    {{ session.id }} - {{ session.formation }} - {{ session.site }}
+                    {% if session.annule %}
+                        <span class="annule">(Annulée)</span>
+                    {% endif %}
+                </option>
                 {% endfor %}
             </select>
         </div>
 
-        <!-- Sélection de la Période -->
+        <!-- Sélection des Périodes -->
         <div class="mb-3">
-            <label for="periodeSelect" class="form-label">Période :</label>
-            <select name="periode_id" id="periodeSelect" class="form-select" required>
+            <label for="periode_id" class="form-label">Période</label>
+            <select class="form-select" id="periode_id" name="periode_id">
                 <option value="" disabled selected>-- Sélectionnez une période --</option>
-                <!-- Les périodes seront chargées dynamiquement -->
+                <!-- Les options seront chargées dynamiquement via JavaScript -->
             </select>
         </div>
-
-        <!-- Checkbox pour Toutes les Périodes -->
         <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" name="all_periodes" id="allPeriodesCheckbox" value="1">
-            <label class="form-check-label" for="allPeriodesCheckbox">Toutes les périodes</label>
+            <input class="form-check-input" type="checkbox" value="1" id="all_periodes" name="all_periodes">
+            <label class="form-check-label" for="all_periodes">
+                Toutes les périodes
+            </label>
         </div>
 
-        <!-- Sélection du Candidat -->
+        <!-- Sélection des Candidats -->
         <div class="mb-3">
-            <label for="candidateSelect" class="form-label">Candidat :</label>
-            <select name="candidate_id" id="candidateSelect" class="form-select" required>
+            <label for="candidate_id" class="form-label">Candidat</label>
+            <select class="form-select" id="candidate_id" name="candidate_id">
                 <option value="" disabled selected>-- Sélectionnez un candidat --</option>
-                <!-- Les candidats seront chargés dynamiquement -->
+                <!-- Les options seront chargées dynamiquement via JavaScript -->
             </select>
         </div>
-
-        <!-- Checkbox pour Tous les Candidats -->
         <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" name="all_candidates" id="allCandidatesCheckbox" value="1">
-            <label class="form-check-label" for="allCandidatesCheckbox">Tous les candidats</label>
+            <input class="form-check-input" type="checkbox" value="1" id="all_candidates" name="all_candidates">
+            <label class="form-check-label" for="all_candidates">
+                Tous les candidats
+            </label>
         </div>
 
         <!-- Bouton de Soumission -->
-        <button type="submit" class="btn btn-primary">Générer la feuille d'émargement</button>
+        <button type="submit" class="btn btn-success"><i class="fas fa-file-pdf"></i> Générer le PDF</button>
     </form>
 </div>
 
-<!-- Scripts pour mettre à jour les listes déroulantes dynamiquement -->
+<!-- Scripts pour charger dynamiquement les périodes et les candidats en fonction de la session sélectionnée -->
 <script>
-    function updatePeriodesAndCandidates() {
-        var sessionId = document.getElementById('sessionSelect').value;
+    document.getElementById('session_id').addEventListener('change', function() {
+        var sessionId = this.value;
+        var periodesSelect = document.getElementById('periode_id');
+        var candidatesSelect = document.getElementById('candidate_id');
 
-        // Mettre à jour les périodes
-        fetch('/get_periodes/' + sessionId)
-            .then(response => response.json())
-            .then(data => {
-                var periodeSelect = document.getElementById('periodeSelect');
-                periodeSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez une période --</option>';
-                data.periodes.forEach(function(periode) {
-                    var option = document.createElement('option');
-                    option.value = periode.id;
-                    option.text = periode.date_debut + ' au ' + periode.date_fin;
-                    periodeSelect.appendChild(option);
+        // Réinitialiser les sélections
+        periodesSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez une période --</option>';
+        candidatesSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez un candidat --</option>';
+
+        if (sessionId) {
+            // Charger les périodes
+            fetch(`/get_periodes/${sessionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    data.periodes.forEach(function(periode) {
+                        var option = document.createElement('option');
+                        option.value = periode.id;
+                        option.textContent = `${periode.date_debut} - ${periode.date_fin}`;
+                        periodesSelect.appendChild(option);
+                    });
                 });
-            });
 
-        // Mettre à jour les candidats
-        fetch('/get_candidates/' + sessionId)
-            .then(response => response.json())
-            .then(data => {
-                var candidateSelect = document.getElementById('candidateSelect');
-                candidateSelect.innerHTML = '<option value="" disabled selected>-- Sélectionnez un candidat --</option>';
-                data.candidates.forEach(function(candidate) {
-                    var option = document.createElement('option');
-                    option.value = candidate.id;
-                    option.text = candidate.nom + ' ' + candidate.prenom;
-                    candidateSelect.appendChild(option);
+            // Charger les candidats
+            fetch(`/get_candidates/${sessionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    data.candidates.forEach(function(candidate) {
+                        var option = document.createElement('option');
+                        option.value = candidate.id;
+                        option.textContent = `${candidate.id} - ${candidate.prenom} ${candidate.nom}`;
+                        candidatesSelect.appendChild(option);
+                    });
                 });
-            });
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        // Optionnel : charger les périodes et candidats pour la première session sélectionnée
-        var sessionSelect = document.getElementById('sessionSelect');
-        if (sessionSelect.value) {
-            updatePeriodesAndCandidates();
         }
+    });
 
-        // Désactiver le sélecteur de candidat si "Tous les candidats" est cochée
-        document.getElementById('allCandidatesCheckbox').addEventListener('change', function() {
-            var candidateSelect = document.getElementById('candidateSelect');
-            if (this.checked) {
-                candidateSelect.disabled = true;
-                candidateSelect.value = "";  // Réinitialiser la sélection
-            } else {
-                candidateSelect.disabled = false;
-            }
-        });
+    // Gestion des cases à cocher "Toutes les périodes" et "Tous les candidats"
+    document.getElementById('all_periodes').addEventListener('change', function() {
+        var periodesSelect = document.getElementById('periode_id');
+        if (this.checked) {
+            periodesSelect.disabled = true;
+        } else {
+            periodesSelect.disabled = false;
+        }
+    });
 
-        // Désactiver le sélecteur de période si "Toutes les périodes" est cochée
-        document.getElementById('allPeriodesCheckbox').addEventListener('change', function() {
-            var periodeSelect = document.getElementById('periodeSelect');
-            if (this.checked) {
-                periodeSelect.disabled = true;
-                periodeSelect.value = "";  // Réinitialiser la sélection
-            } else {
-                periodeSelect.disabled = false;
-            }
-        });
+    document.getElementById('all_candidates').addEventListener('change', function() {
+        var candidatesSelect = document.getElementById('candidate_id');
+        if (this.checked) {
+            candidatesSelect.disabled = true;
+        } else {
+            candidatesSelect.disabled = false;
+        }
     });
 </script>
 {% endblock %}

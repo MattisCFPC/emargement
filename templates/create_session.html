@@ -1,3 +1,5 @@
+<!-- templates/create_session.html -->
+
 {% extends "base.html" %}
 
 {% block title %}Créer une nouvelle session{% endblock %}
@@ -122,7 +124,6 @@
             </div>
         `;
         candidatesDiv.appendChild(newCandidate);
-        //
         newCandidate.scrollIntoView({ behavior: 'smooth' });
     });
 
@@ -154,7 +155,6 @@
             </div>
         `;
         periodesDiv.appendChild(newPeriode);
-        //
         newPeriode.scrollIntoView({ behavior: 'smooth' });
     });
 
@@ -164,7 +164,5 @@
             e.target.closest('.row').remove();
         }
     });
-
-    
 </script>
 {% endblock %}
