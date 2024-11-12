@@ -23,13 +23,13 @@ app = Flask(__name__)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # Configuration de l'URI de la base de données avec un chemin absolu
-DATABASE_URI = os.getenv('DATABASE_URI', f'sqlite:///{os.path.join(BASE_DIR, "emargement.db")}')
+DATABASE_URI = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'votre_clé_secrète')
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-# Afficher le chemin absolu de la base de données utilisée
+# Afficher le chemin absolu de la base de données utilisée (pour debug)
 parsed_url = urlparse(DATABASE_URI)
 if parsed_url.scheme == 'sqlite':
     db_path = os.path.abspath(os.path.join(parsed_url.netloc, parsed_url.path))
@@ -244,7 +244,7 @@ def generate_attendance():
                 p.drawString((width - session_title_width) / 2, current_y, session_title)
 
                 # Mettre à jour la position Y après le titre de la session
-                current_y -= 20  # 30 points d'espace après le titre de la session
+                current_y -= 20  # 20 points d'espace après le titre de la session
 
                 # Informations à gauche
                 p.setFont("Helvetica", 10)
@@ -405,5 +405,5 @@ def add_candidate(session_id):
 
 
 if __name__ == '__main__':
-    print("Démarrage de l'application Flask...")
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
