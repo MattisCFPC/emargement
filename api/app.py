@@ -9,6 +9,11 @@ import io
 from dotenv import load_dotenv
 import warnings
 from urllib3.exceptions import NotOpenSSLWarning
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib.units import mm
 import logging
 
 # Importations pour Firestore
