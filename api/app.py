@@ -355,7 +355,6 @@ def generate_attendance():
                         "",
                         "",
                         "",
-                        ""
                     ])
 
                 # Déterminer la hauteur des lignes en fonction du nombre de dates
