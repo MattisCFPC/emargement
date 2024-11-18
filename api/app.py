@@ -365,7 +365,7 @@ def generate_attendance():
                     row_height = 32  # Hauteur standard
 
                 # Création du tableau avec une colonne supplémentaire et hauteur ajustée
-                table = Table(data, colWidths=[70, 70, 80, 70, 80, 80], rowHeights=row_height)
+                table = Table(data, colWidths=[70, 70, 90, 70, 90, 80], rowHeights=row_height)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2FAC66")),  # Couleur d'en-tête
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
