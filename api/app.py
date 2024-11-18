@@ -344,7 +344,7 @@ def generate_attendance():
 
                 # Tableau pour l'émargement avec une colonne "Signature CFA"
                 data = [
-                    ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature", "Signature CFA"]
+                    ["Date", "Matin", "Observation(s)", "Après-midi", "Observation(s)", "Signature CFA"]
                 ]
                 for day in range(0, (date_fin_dt - date_debut_dt).days + 1):
                     date = date_debut_dt + timedelta(days=day)
